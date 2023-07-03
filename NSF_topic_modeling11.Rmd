@@ -8,7 +8,8 @@ to find NA in a column of a data frame: new_DF <- DF[is.na(DF$Var),]
 eg. new_lemma_new <- lemma_new[is.na(lemma_new$word),]
 ```{r}
 # setwd("~/Documents/TextMiningR/NSF-AST/")
-setwd("~/Documents/papers/NSFThemeAnalysis2018/RTrendAnalysis/")
+# setwd("~/Documents/papers/NSFThemeAnalysis2018/RTrendAnalysis/")
+setwd("~/Documents/TopicAnalysis/TopicAnalysis/")
 library(styler)
 
 #### Functions #####
@@ -58,7 +59,7 @@ HistogramFun<-function(funding, fstatedPercent, numRows) {
   title(ylab="Dollar Value of Award in Millions", line = 2) 
 }
 ```
-
+--------------------------------------------
 ```{r}
 #Use tcltk to get the file name of the grants to process
 library(tcltk2)
@@ -71,7 +72,7 @@ if (!nchar(filename)) {
 # Read in the file
 MyData <- read.csv(filename, header=TRUE, sep="\t", encoding = "UTF-8", stringsAsFactors=FALSE) # tab delimited
 
-# pull off the directory part of the file neame to use later for saving outut files.
+# pull off the directory part of the file name to use later for saving outut files.
 topicDir <- tools::file_path_sans_ext(filename)
 
 dir.create(topicDir, showWarnings = FALSE)
@@ -86,7 +87,7 @@ nsf_funding <- data_frame(id = as.character(MyData$AwardNumber),
                           abstract = MyData$Abstract,
                           amount = MyData$AwardedAmountToDate)
 # remove html tags in the form <anything>
-# ??? drop records with empty abstracts
+# drop records with empty abstracts
 # changed PBH 2019-02-27 to put in a space when html is replaced
 nsf_funding$abstract <- gsub("<[^>]+>", " ", nsf_funding$abstract)
 # remove where the word is a number
@@ -125,7 +126,7 @@ For astronomy data may need to hide the few big projects to see the curve.
 
 
 ```{r}
-### Only run this to use custome stop words. ####
+### Only run this to use custom stop words. ####
 library(tidytext)
 #Custom stop words
 #adapt for Bio!!!
@@ -224,7 +225,7 @@ lemma_unique = within(lemma_unique, {
 
 ```{r}
 #replace all of the original words in the nsf_funding with lemmas
-# This also needs to be done for the bigrams where the substatution happens for each of the two columns in the bigram. ???
+# This also needs to be done for the bigrams where the substitution happens for each of the two columns in the bigram. ???
 lemma_new <- lemma_unique
 #lemma_new <- left_join(nsf_funding,lemma_new, by = "word")
 lemma_new <- left_join(nsf_funding,lemma_new, by = "word") %>%
@@ -263,13 +264,15 @@ freq[tail(ord)]
 
 
 ```{r}
-# Plot the occurence frequencies
+# Plot the occurance frequencies
 wf=data.frame(term=names(freq),occurrences=freq)
 library(ggplot2)
 p <- ggplot(subset(wf, freq>200), aes(term, occurrences))
 p <- p + geom_bar(stat="identity")
 p <- p + theme(axis.text.x=element_text(angle=45, hjust=1))
 p
+ggsave(paste(topicDir,"/WordFreqBarGraph.png", sep=""))
+
 ```
 
 ```{r}
@@ -492,7 +495,7 @@ library(topicmodels)
 #Harmonic mean was 34 topics but 29 is almost the same; 
 # [23] -408680.1 -407910.1 -408071.9 -407422.7 -407173.9 -406342.0 -407583.3 -407614.1 -407782.2 -408115.3 -405507.6
 # be aware that running this model is time intensive
-NumTopics <- 34
+NumTopics <- 29
 desc_lda <- LDA(desc_dtm, method = "Gibbs", k = NumTopics, control = list(seed = 1234))
 desc_lda
 # Since it is time consuming to create the desc_lda file we save it here for backup. 
@@ -588,9 +591,9 @@ top_terms %>%
   labs(title = "Top terms in each LDA topic",
        x = NULL, y = expression(beta)) +
   facet_wrap(~ topic, ncol = 3, scales = "free")
-#topicFileName <- gsub(".csv","TermsLDAHistogram.png", filename)
-#ggsave(topicFileName, height = 14, device = "png")
-#png(paste(topicDir,"/TermsLDAHistogram.png", sep=""), width = 1280, height = 1600)
+topicFileName <- gsub(".csv","TermsLDAHistogram.png", filename)
+ggsave(topicFileName, height = 14, device = "png")
+png(paste(topicDir,"/TermsLDAHistogram.png", sep=""), width = 1280, height = 2000)
 while (!is.null(dev.list()))  dev.off()
 ```
 
@@ -633,7 +636,7 @@ library(data.table)
 setDT(nsf_funding_save, keep.rownames = TRUE)[]
 #Change the column name form the "rn" defaculty to "FundingRank"
 colnames(nsf_funding_save)[1] <- "FundingRank"
-# Change class of nsf_funding_save$id to charcater(from integer)
+# Change class of nsf_funding_save$id to character(from integer)
 nsf_funding_save$id <- as.character(nsf_funding_save$id)
 lda_gamma2 <- dplyr::left_join(lda_gamma, nsf_funding_save, 
               select(FundingRank), by = c("document" = "id")) 
@@ -641,7 +644,7 @@ lda_gamma2 <- dplyr::left_join(lda_gamma, nsf_funding_save,
 lda_gamma2$FundingRank = as.numeric(lda_gamma2$FundingRank)#[lda_gamma2]
 # convert Topic to a character
 
-# Sort the topics by the amont of monney they braught in. Sum of document Gamma = 1
+# Sort the topics by the amount of money they brought in. Sum of document Gamma = 1
 # The funding associated with each topic is the 
 # sum of all (gamma*funding amount for each grant)
 lda_gamma2 <- lda_gamma2 %>% mutate(worth = gamma * amount)
@@ -671,7 +674,7 @@ p <- ggplot(lda_gamma3, aes(x=FundingRank, y=TopicWorthRank)) +
        caption="Topic Analysis")
 p
 ggsave(paste(topicDir,"/DocTopic.png", sep=""), height = 10, device = "png")
-#png(paste(topicDir,"/TermsLDAHistogram.png", sep=""), width = 1280, height = 1600)
+png(paste(topicDir,"/TermsLDAHistogram.png", sep=""), width = 1280, height = 1600)
 while (!is.null(dev.list()))  dev.off()
 p
 ```
@@ -893,7 +896,7 @@ bigrams_separated <- nsf_funding_bigram %>%
 bigrams_filtered <- bigrams_separated %>%
   filter(!word1 %in% stop_words$word) %>%
   filter(!word2 %in% stop_words$word)#replace all of the original words in the nsf_funding with lemmas
-# This also needs to be done for the bigrams where the substatution happens for each of the two columns in the bigram. ???
+# This also needs to be done for the bigrams where the substitution happens for each of the two columns in the bigram. ???
 lemma_bigram_new <- lemma_unique
 #replace word 1 with lemma
 lemma_bigram_new <- left_join(bigrams_filtered,lemma_bigram_new, by = c("word1" = "word")) %>%
@@ -1024,7 +1027,7 @@ top_bigrams_for_docs_wide <-
 
 # add the bigram columns to top_docs
 ### error - repeats of bigrams for too many documents....
-# maybe not an error... documents in the smae topic are getting many of the same bigrams.
+# maybe not an error... documents in the same topic are getting many of the same bigrams.
 top_documents <- left_join(top_documents, top_bigrams_for_docs_wide,
             select(bigram1, bigram2, bigram3, bigram4, bigram5),
             by = c("document" = "id"))
@@ -1151,7 +1154,7 @@ colnames(x) <- c("GrantNumber")
 x$LessonId <- as.numeric(x$LessonId)
 theta2 <- cbind(x, theta)
 theta2 <- dplyr::left_join(theta2, FirstCategorybyLesson, by = "GrantNumber")
-## Returns column means grouped by catergory
+## Returns column means grouped by category
 ## The example this came from had 27 topics... why 28? We have variable NumTopics
 theta.mean.by <- by(theta2[, 2:28], theta2$Category, colMeans)
 theta.mean <- do.call("rbind", theta.mean.by)
@@ -1188,6 +1191,6 @@ write.csv(TopicInvestmentBigram, paste(topicDir,"/TopicInvestmentBigram.csv", se
 Identify the top element codes for a topic.
 Each grant has a gamma associated with each topic.
 Each grant has one or more element code. 
-Program codes indicate cross-NSF initiatives. The element code is home but funding also arrises from the cross NSF programs. For a first aproximation analaysis calculate the element contribution to a topic by multiplying the grant amount for each grant in the for each topic ProgramInvestment = Sum of gamma * amount divided evenly among elment codes. This distribution is an approximation because the split for funding may not be 50/50. eg. if there is one element code all spending is assigned to that one element. If there are two the investement will be split between them.  Money may actually be coming form program codes as well..
+Program codes indicate cross-NSF initiatives. The element code is home but funding also arises from the cross NSF programs. For a first aproximation analaysis calculate the element contribution to a topic by multiplying the grant amount for each grant in the for each topic ProgramInvestment = Sum of gamma * amount divided evenly among elment codes. This distribution is an approximation because the split for funding may not be 50/50. eg. if there is one element code all spending is assigned to that one element. If there are two the investement will be split between them.  Money may actually be coming form program codes as well..
 Output Data Structure: Topic, Element Code, Total Investment
 

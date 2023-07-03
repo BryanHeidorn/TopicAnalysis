@@ -1,0 +1,173 @@
+---
+title: "Merge Collaborative Projects"
+output: html_notebook
+root.dir: 
+---
+Merge collaborative projects based on title of grant. Add all funding and place on one grant. This is because the Abstracts for all proposals are the same distorting topic analysis. Some project titles on collaborative grants are however slightly different so some matching may need to be by hand.
+
+# set the root directory for analysis
+# setwd("~/Documents/TextMiningR/NSF-AST/")
+#setwd("~/Documents/papers/NSFThemeAnalysis2018/RTrendAnalysis/")
+
+#tkmessageBox(message = "Select a tab delimited text file.")
+#filename <- tclvalue(tkgetOpenFile(initialdir=".")) # 
+
+
+```{r, setup, include=FALSE}
+knitr::opts_knit$set(root.dir = '/Users/heidorn/Desktop/NSF201020152020')
+```
+```{r}
+#setwd("/Users/heidorn/Desktop/NSF201020152020")
+
+filename = file.choose()
+NSF_Funding <- read.csv(filename, header=T, encoding = "UTF-8", 
+                        stringsAsFactors=FALSE) # comma delimited
+# remove empty columns
+empty_columns <- colSums(is.na(NSF_Funding) | NSF_Funding == "") == nrow(NSF_Funding)
+# Change data type to number for award amount
+NSF_Funding$AwardedAmountToDate <- as.numeric(gsub('[$,]', '', NSF_Funding$AwardedAmountToDate))
+#NSFTemp <- NSF_Funding[, !empty_columns]
+#Make a subdirectory if needed to save the results
+topicDir <- tools::file_path_sans_ext(filename)
+ifelse(!dir.exists(topicDir), dir.create(topicDir), "")
+
+# drop records with empty abstracts. These are usually intergovernmental agreements
+NSF_Funding <- NSF_Funding[!NSF_Funding$Abstract=="", ]
+```
+
+```{r}
+# Create a triangular matrix of similarity.
+# Nested loop start with 1 - N
+library(dplyr)
+#https://cran.r-project.org/web/packages/stringdist/stringdist.pdf
+install.packages("stringdist")
+library(stringdist)
+Mx <- stringdistmatrix(tolower(NSF_Funding$Title), tolower(NSF_Funding$Title), method= c("lcs"))
+# Too much data to be helpful in this visualization 
+#plot(hclust(as.dist(Mx)))
+#serialization inspired by: https://stackoverflow.com/questions/27892100/distance-matrix-to-pairwise-distance-list-in-r
+# Use the AwardNumber as the labels
+dimnames(Mx) <- dimnames(Mx) <- list(NSF_Funding$AwardNumber, NSF_Funding$AwardNumber) 
+#  Paste together the AwardNumber to matrix
+xy <- t(combn(colnames(Mx), 2))
+MxSim <- data.frame(xy, dist=Mx[xy])
+# Now sort by similarity and AwardNumber.
+MxSim <- MxSim[ with(MxSim, order(MxSim$dist, MxSim$X1)), ]
+# Shorten the list to the most similar
+ShortMxCol <- MxSim[ which(MxSim$dist < 25), ]
+# add the Project Titles 
+# Add the title for the left AwardNumber
+ShortMxCol <- merge(x = ShortMxCol, y = select(NSF_Funding, c(AwardNumber, Title)), by.y = c("AwardNumber"), by.x = "X1")
+# Change the name of the "Title" Column to "Title 1"
+colnames(ShortMxCol)[which(names(ShortMxCol) == "Title")] <- "Title 1"
+# Add the title for the right AwardNumber
+ShortMxCol <- merge(x = ShortMxCol, y = select(NSF_Funding, c(AwardNumber, Title)), by.y = c("AwardNumber"), by.x = "X2")
+write.csv(ShortMxCol, paste(topicDir,"/SimilarTitles.csv", sep=""))
+```
+
+
+```{r}
+# Repeat calculations for abstracts
+#_____________________________________________________
+# remove html tags in the form <anything>
+# remove where the word is a number
+# if there are any "words" with embedded periods Eg "John.P.Doud, replace the period with a space.
+# remove "'s"
+# fix eg trichoptera:hydropsychidae 
+NSF_Funding$Abstract <- gsub("<[^>]+>", " ", 
+                        gsub("\\d", "", 
+                        gsub("\\.", " ", 
+                        gsub("'s", "", 
+                        gsub(":", " ", NSF_Funding$Abstract)))))
+
+# if you get errors from multi-byte characters you may need to run: iconv  -f UTF-8 -t ISO-8859-1 -c Awardsfile.csv > Awardsfile.csv
+# make a shortened abstract of 100 characters
+NSF_Funding$ShortAbstract <- tolower(substr(NSF_Funding$Abstract, 1, 100))
+
+MxAbstract <- stringdistmatrix(NSF_Funding$ShortAbstract,     
+                               NSF_Funding$ShortAbstract, method= c("cosine"))
+# Too much data to be helpful in this visualization 
+#plot(hclust(as.dist(Mx)))
+#serialization inspited by: https://stackoverflow.com/questions/27892100/distance-matrix-to-pairwise-distance-list-in-r
+# Use the AwardNumber as the labels
+dimnames(MxAbstract) <- dimnames(MxAbstract) <- list(NSF_Funding$AwardNumber, NSF_Funding$AwardNumber) 
+#  Paste together the AwardNumber to the matrix
+xyAbstract <- t(combn(colnames(MxAbstract), 2))
+
+MxSimAbstract <- data.frame(xyAbstract, dist=MxAbstract[xyAbstract])
+# Now sort by similarity and AwardNumber.
+MxSimAbstract <- MxSimAbstract[ with(MxSimAbstract, order(MxSimAbstract$dist, MxSimAbstract$X1)), ]
+# Shorten the list to the most similar
+ShortMxColAbstract <- MxSimAbstract[ which(MxSimAbstract$dist < .01), ]
+# add the Project Abstract 
+# Add the title for the left AwardNumber
+ShortMxColAbstract <- merge(x = ShortMxColAbstract, y = 
+                              select(NSF_Funding, c(AwardNumber, ShortAbstract, 
+                                                    ProgramElementCode.s.)), 
+                              by.y = c("AwardNumber"), by.x = "X1")
+# Change the name of the "Abstract" Column to "Abstract 1"
+colnames(ShortMxColAbstract)[which(names(ShortMxColAbstract) == "ShortAbstract")] <- "SAbstract 1"
+colnames(ShortMxColAbstract)[which(names(ShortMxColAbstract) == "ProgramElementCode.s.")]  <- "ProgramElementCode1"
+# Add the title for the right AwardNumber
+ShortMxColAbstract <- merge(x = ShortMxColAbstract, y = 
+                              select(NSF_Funding, c(AwardNumber, ShortAbstract, 
+                                                    ProgramElementCode.s.)), 
+                            by.y = c("AwardNumber"), by.x = "X2")
+colnames(ShortMxColAbstract)[which(names(ShortMxColAbstract) == 
+                                     "ProgramElementCode.s.")]  <- "ProgramElementCode2"
+write.csv(ShortMxColAbstract, paste(topicDir,"/SimilarAbstracts.csv", sep=""))
+```
+
+
+# Marge all records remaining in the Similarity file.
+# Any records that should not be there should have been removed by a manual process.
+ShortMxColWOCollab <- read.csv(paste(topicDir,"/SimilarTitles.csv", sep=""), header=TRUE, encoding = "UTF-8", stringsAsFactors=FALSE) # comma delimited
+# Read through main file line by line... see if matches exists in the Title column with similarity < 25. If so merge the $amount and the ProgramElementCode(s) and ProgramReferenceCode(s) removing duplicates.'
+```{r}
+
+```
+
+```{r}
+Collaborationsdf = subset(ShortMxColAbstract, 
+                          select = c(X1, X2, ProgramElementCode1, ProgramElementCode2) )
+# Merge Program element codes, group by X1
+Collaborationsdf <- merge(x = Collaborationsdf, y = 
+                              select(NSF_Funding, c(AwardNumber,AwardedAmountToDate)), 
+                            by.y = c("AwardNumber"), by.x = "X1")
+#rename AwardedAmountToDate to AwardedAmountToDateX1
+colnames(Collaborationsdf)[which(names(Collaborationsdf) 
+                                 == "AwardedAmountToDate")] <- "AwardedAmountToDateX1"
+# Merge Program element codes, group by X2
+Collaborationsdf <- merge(x = Collaborationsdf, y = 
+                              select(NSF_Funding, c(AwardNumber,AwardedAmountToDate)), 
+                            by.y = c("AwardNumber"), by.x = "X2")
+#rename AwardedAmountToDate to AwardedAmountToDateX2
+colnames(Collaborationsdf)[which(names(Collaborationsdf) 
+                                 == "AwardedAmountToDate")] <- "AwardedAmountToDateX2"
+Collaborationsdf <- Collaborationsdf[, c(2, 1, 3, 4, 5, 6)] # leave the row index blank to keep all rows
+library(dplyr)
+# csum will have sum of the collaborative grants plus the starting grant
+Collaborationsdf <- Collaborationsdf %>% 
+  group_by(X1) %>% 
+  mutate(csum = sum(AwardedAmountToDateX2) + AwardedAmountToDateX1) #%>%
+ # AwardedAmountToDateX2 = 0
+
+# for debugging only Collaborationsdf <- subset(Collaborationsdf, select = -c(csum) )
+# Make copy of NSF_Funding with all funding records
+NSFRecordsSkipDF <- NSF_Funding
+#Add a true/false column to indicate that a field should be skipped on output (because of merged records)
+NSFRecordsSkipDF['Skip'] <- FALSE
+#scan through each records in the dataframe that is not marked SKIP
+collaborators <- function(ID) {
+  #select X2 for all rows with ID as the X1 project ID
+  leftrepeats <- 
+}
+Collaborationsdf[Collaborationsdf$X1 == '1010009', "X2"]
+#check the ShortMxColAbstract AwardNumber1  if it matches, just keep it get the awardnumber2 from the #similarity matrix. search the NSFFunding for the Amount and add it to the Amount in the # NSFRecordSkipDF, concatinate the element codes and remove duplicates. make the record as SKIP.
+#get all AwardNumber1 where the AwardNumber matches ShortMxColAbstract$AwardNumber2
+# for each of these add the amount and concat the element codes and make as skip.# eliminate all records marked as skip
+
+# do a check by comparing the sum of amounts in the original data and the new colaboration combined data
+# 
+```
+

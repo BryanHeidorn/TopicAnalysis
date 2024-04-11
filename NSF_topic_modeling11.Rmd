@@ -6,10 +6,16 @@ output: html_notebook
 Useful tools... 
 to find NA in a column of a data frame: new_DF <- DF[is.na(DF$Var),] 
 eg. new_lemma_new <- lemma_new[is.na(lemma_new$word),]
+```{r setup}
+
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+
+```
+
 ```{r}
 # setwd("~/Documents/TextMiningR/NSF-AST/")
 # setwd("~/Documents/papers/NSFThemeAnalysis2018/RTrendAnalysis/")
-setwd("~/Documents/TopicAnalysis/TopicAnalysis/")
+#setwd("~/Documents/TopicAnalysis/TopicAnalysis/")
 library(styler)
 
 #### Functions #####
@@ -59,9 +65,10 @@ HistogramFun<-function(funding, fstatedPercent, numRows) {
   title(ylab="Dollar Value of Award in Millions", line = 2) 
 }
 ```
---------------------------------------------
+
 ```{r}
 #Use tcltk to get the file name of the grants to process
+library(tidyverse) 
 library(tcltk2)
 #tkmessageBox(message = "Select a tab delimited text file.")
 filename <- tclvalue(tkgetOpenFile(initialdir=".")) # 
@@ -83,11 +90,16 @@ dir.create(topicDir, showWarnings = FALSE)
 # User must enter the # on the console!
 library(dplyr)
 
-nsf_funding <- data_frame(id = as.character(MyData$AwardNumber),
+#nsf_funding <- data_frame(id = as.character(MyData$AwardNumber),
+nsf_funding <- tibble(id = as.character(MyData$AwardNumber),
                           abstract = MyData$Abstract,
                           amount = MyData$AwardedAmountToDate)
 # remove html tags in the form <anything>
 # drop records with empty abstracts
+# if you get errors from multi-byte characters you may need to run: iconv  -f UTF-8 -t ISO-8859-1 -c Awardsfile.csv > Awardsfile.csv
+# Convert the text from one encoding to another - PBH 2024/04/5
+nsf_funding$abstract <- iconv(nsf_funding$abstract, from = "UTF-8", to = "ASCII//TRANSLIT")
+
 # changed PBH 2019-02-27 to put in a space when html is replaced
 nsf_funding$abstract <- gsub("<[^>]+>", " ", nsf_funding$abstract)
 # remove where the word is a number
@@ -109,8 +121,7 @@ statedPercent <- 100
 # if statedPercent is not set in the code ask the user
 if(!exists("statedPercent")){statedPercent <- readpercent();}
 # if it is negative then it is really the tail and the head is the length the array minus that amount
-
-#This displays on the screen
+# This displays on the screen
 HistogramFun(nsf_funding$amount/1000000, statedPercent, nrow(nsf_funding))
 #This saves a file
 png(paste(topicDir,"/focusHistogram.png", sep=""), width = 5, height = 4, units = 'in', res = 300)
@@ -181,7 +192,7 @@ lemma_unique <- nsf_funding %>%
 library(dplyr)
 library(sylly)
 library(koRpus)
-#install.koRpus.lang("en")
+install.koRpus.lang("en")
 library(koRpus.lang.en)
 # setup for lemmanization
 # Outside of R Install tree-tagger from https://cran.r-project.org/web/packages/koRpus/vignettes/koRpus_vignette.html
@@ -224,7 +235,7 @@ lemma_unique = within(lemma_unique, {
 ```
 
 ```{r}
-#replace all of the original words in the nsf_funding with lemmas
+# replace all of the original words in the nsf_funding with lemmas
 # This also needs to be done for the bigrams where the substitution happens for each of the two columns in the bigram. ???
 lemma_new <- lemma_unique
 #lemma_new <- left_join(nsf_funding,lemma_new, by = "word")
@@ -414,21 +425,33 @@ Murzintcev Nikita
 Package can be installed from CRAN
 Package ldatuning realizes 4 metrics to select perfect number of topics for LDA model.
 ```{r fig.width=11}
+
+#install.packages("Rmpfr")
+library(Rmpfr)
 #LDA Tuning: Pick the Number of topics
+
 #install.packages("ldatuning")
-# Changed method in the exmaple from "Gibbs"" to "VEM" to mathc the Nasa Example
+# Changed method in the example from "Gibbs"" to "VEM" to mathc the Nasa Example
 library("ldatuning")
+
+#install.packages("topicmodels")
+
 library(topicmodels)
+```
+
+```{r fig.width=11}
+
 system.time(
-  result <- FindTopicsNumber(
-  desc_dtm,
-  topics = seq(from = 10, to = 50, by = 1),
-  metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
-  method = "Gibbs",
-  control = list(seed = 1234),
-  mc.cores = 4L,
-  verbose = TRUE
-))
+  result <- ldatuning::FindTopicsNumber(
+    desc_dtm,
+    topics = seq(from = 15, to = 30, by = 1),
+    metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+    method = "Gibbs",
+    control = list(seed = 1234),
+    mc.cores = 4L,
+    verbose = TRUE
+  )
+)
 png(paste(topicDir,"/FindTopicNumber.png", sep=""), width=1280,height=800)
 FindTopicsNumber_plot(result)
 while (!is.null(dev.list()))  dev.off()

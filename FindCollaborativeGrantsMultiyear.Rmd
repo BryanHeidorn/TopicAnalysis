@@ -160,9 +160,8 @@ NSFRecordsSkipDF['Skip'] <- FALSE
 #scan through each records in the dataframe that is not marked SKIP
 collaborators <- function(ID) {
   #select X2 for all rows with ID as the X1 project ID
-  leftrepeats <- 
+  leftrepeats <- Collaborationsdf[Collaborationsdf$X1 == '1010009', "X2"]
 }
-Collaborationsdf[Collaborationsdf$X1 == '1010009', "X2"]
 #check the ShortMxColAbstract AwardNumber1  if it matches, just keep it get the awardnumber2 from the #similarity matrix. search the NSFFunding for the Amount and add it to the Amount in the # NSFRecordSkipDF, concatinate the element codes and remove duplicates. make the record as SKIP.
 #get all AwardNumber1 where the AwardNumber matches ShortMxColAbstract$AwardNumber2
 # for each of these add the amount and concat the element codes and make as skip.# eliminate all records marked as skip
